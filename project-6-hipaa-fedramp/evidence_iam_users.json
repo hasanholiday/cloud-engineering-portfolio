@@ -1,0 +1,12 @@
+{
+    "Users": [
+        {
+            "Path": "/",
+            "UserName": "hasan-admin",
+            "UserId": "AIDA4PNBTSEZD2IL2567D",
+            "Arn": "arn:aws:iam::857721770290:user/hasan-admin",
+            "CreateDate": "2026-05-14T12:29:20+00:00",
+            "PasswordLastUsed": "2026-08-03T10:53:04+00:00"
+        }
+    ]
+}

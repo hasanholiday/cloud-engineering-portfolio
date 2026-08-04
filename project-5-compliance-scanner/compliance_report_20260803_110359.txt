@@ -1,0 +1,56 @@
+COMPLIANCE AND SECURITY SCAN REPORT
+Date: 2026-08-03 11:03:59
+Total Checks: 17
+Passed: 9
+Failed: 8
+
+PASS | LOW | S3 Encryption at Rest | hasan-cloud-pro-resume
+
+FAIL | CRITICAL | S3 Public Access Blocked | hasan-cloud-pro-resume
+  Framework: PCI-DSS 1.3
+  Fix: Enable all public access block settings on S3 bucket
+
+PASS | LOW | S3 Encryption at Rest | my-first-bucket-hasan-2026
+
+FAIL | CRITICAL | S3 Public Access Blocked | my-first-bucket-hasan-2026
+  Framework: PCI-DSS 1.3
+  Fix: Enable all public access block settings on S3 bucket
+
+FAIL | CRITICAL | Port 22 Open to World | sg-0055bbe4ae23373e7 (launch-wizard-1)
+  Framework: PCI-DSS 1.2 | HIPAA 164.312(a)(1)
+  Fix: Restrict port 22 to specific IP addresses only
+
+PASS | LOW | Port 80 Open to World | sg-0a7015576d4a60e36 (launch-wizard-2)
+
+PASS | LOW | Port 8080 Open to World | sg-0a7015576d4a60e36 (launch-wizard-2)
+
+FAIL | CRITICAL | Port 22 Open to World | sg-0a7015576d4a60e36 (launch-wizard-2)
+  Framework: PCI-DSS 1.2 | HIPAA 164.312(a)(1)
+  Fix: Restrict port 22 to specific IP addresses only
+
+PASS | LOW | Port 80 Open to World | sg-0d3a68e6f75365db1 (my-vpc-webserver-sg)
+
+FAIL | CRITICAL | Port 22 Open to World | sg-0d3a68e6f75365db1 (my-vpc-webserver-sg)
+  Framework: PCI-DSS 1.2 | HIPAA 164.312(a)(1)
+  Fix: Restrict port 22 to specific IP addresses only
+
+PASS | LOW | Port 443 Open to World | sg-0d3a68e6f75365db1 (my-vpc-webserver-sg)
+
+FAIL | HIGH | MFA Enabled | hasan-admin
+  Framework: HIPAA 164.312(d) | FedRAMP IA-2
+  Fix: Enable MFA for IAM user hasan-admin immediately
+
+PASS | LOW | RDS Encryption at Rest | my-first-database
+
+PASS | LOW | RDS Not Publicly Accessible | my-first-database
+
+FAIL | MEDIUM | RDS Multi-AZ Enabled | my-first-database
+  Framework: SOC2 A1.2
+  Fix: Enable Multi-AZ for high availability and disaster recovery
+
+FAIL | CRITICAL | CloudTrail Enabled | CloudTrail
+  Framework: FedRAMP AU-2 | HIPAA 164.312(b) | SOC2 CC7.2
+  Fix: Enable CloudTrail immediately — required for all compliance frameworks
+
+PASS | LOW | No Stopped Instances Wasting Money | EC2 Fleet
+

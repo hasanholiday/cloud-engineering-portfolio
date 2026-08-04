@@ -1,0 +1,15 @@
+---
+- name: Broken Playbook
+  hosts: webservers
+  become: yes
+
+  tasks:
+    - name: Install a package that does not exist
+      yum:
+        name: git
+        state: present
+
+    - name: This task will never run
+      service:
+        name: httpd
+        state: started
