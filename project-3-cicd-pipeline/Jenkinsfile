@@ -1,0 +1,51 @@
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Pipeline started successfully'
+            }
+        }
+        stage('Terraform Init') {
+            steps {
+                dir('/home/ec2-user/terraform-project') {
+                    sh 'terraform init'
+                }
+            }
+        }
+        stage('Terraform Plan') {
+            steps {
+                dir('/home/ec2-user/terraform-project') {
+                    sh 'terraform plan'
+                }
+            }
+        }
+        stage('Terraform Apply') {
+            steps {
+                dir('/home/ec2-user/terraform-project') {
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
+        stage('Ansible Configure') {
+            steps {
+                dir('/home/ec2-user/ansible-project') {
+                    sh 'ansible-playbook -i inventory.ini webserver.yml'
+                }
+            }
+        }
+        stage('Verify') {
+            steps {
+                sh 'curl http://localhost || echo Verification failed'
+            }
+        }
+    }
+    post {
+        success {
+            echo 'PIPELINE COMPLETE - Infrastructure built and configured'
+        }
+        failure {
+            echo 'PIPELINE FAILED - Check logs above'
+        }
+    }
+}

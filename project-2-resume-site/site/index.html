@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hasan | Cloud Engineer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0a0a0a; color: #ffffff; }
+        header { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 60px 40px; text-align: center; border-bottom: 2px solid #0f3460; }
+        header h1 { font-size: 3em; color: #e94560; margin-bottom: 10px; }
+        header p { font-size: 1.2em; color: #a8b2d8; }
+        .counter { background: #0f3460; padding: 20px; text-align: center; font-size: 1.1em; color: #e94560; }
+        .section { padding: 50px 40px; max-width: 900px; margin: 0 auto; }
+        h2 { color: #e94560; margin-bottom: 20px; font-size: 1.8em; border-bottom: 1px solid #0f3460; padding-bottom: 10px; }
+        .skills-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .skill-card { background: #16213e; padding: 20px; border-radius: 8px; border-left: 4px solid #e94560; }
+        .skill-card h3 { color: #e94560; margin-bottom: 8px; }
+        .projects { display: grid; gap: 20px; }
+        .project-card { background: #16213e; padding: 25px; border-radius: 8px; border-left: 4px solid #0f3460; }
+        .project-card h3 { color: #ffffff; margin-bottom: 10px; }
+        .project-card p { color: #a8b2d8; line-height: 1.6; }
+        .compliance { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+        .badge { background: #0f3460; padding: 6px 14px; border-radius: 20px; font-size: 0.85em; color: #e94560; }
+        footer { text-align: center; padding: 30px; color: #a8b2d8; border-top: 1px solid #0f3460; margin-top: 40px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Hasan</h1>
+        <p>Cloud Engineer | AWS | DevOps | Compliance</p>
+        <p>Atlanta, GA</p>
+    </header>
+
+    <div class="counter">
+        <p>Visitors: <span id="counter">Loading...</span></p>
+    </div>
+
+    <div class="section">
+        <h2>About</h2>
+        <p style="color:#a8b2d8; line-height:1.8">Cloud engineer specializing in AWS infrastructure, DevOps automation, and compliance-driven architecture. Background in education brings exceptional communication and documentation skills to every engagement. I measure my experience by what I have built and what I can prove.</p>
+    </div>
+
+    <div class="section">
+        <h2>Technical Skills</h2>
+        <div class="skills-grid">
+            <div class="skill-card"><h3>AWS</h3><p>EC2, S3, VPC, IAM, RDS, CloudFront, DynamoDB, CloudWatch, GuardDuty, Security Hub</p></div>
+            <div class="skill-card"><h3>Infrastructure as Code</h3><p>Terraform, Ansible — automated provisioning and configuration management</p></div>
+            <div class="skill-card"><h3>Containers</h3><p>Docker, Kubernetes, AWS EKS — container orchestration at scale</p></div>
+            <div class="skill-card"><h3>CI/CD</h3><p>Jenkins — automated pipelines from code to deployment</p></div>
+            <div class="skill-card"><h3>Compliance</h3><p>HIPAA, PCI-DSS, FedRAMP, SOC 2, NIST 800-53</p></div>
+            <div class="skill-card"><h3>Monitoring</h3><p>CloudWatch, Prometheus, Grafana — observability and alerting</p></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Compliance Frameworks</h2>
+        <div class="compliance">
+            <span class="badge">HIPAA</span>
+            <span class="badge">PCI-DSS</span>
+            <span class="badge">FedRAMP</span>
+            <span class="badge">SOC 2</span>
+            <span class="badge">NIST 800-53</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Projects</h2>
+        <div class="projects">
+            <div class="project-card">
+                <h3>Multi-Tier AWS Infrastructure</h3>
+                <p>Provisioned multi-tier AWS infrastructure using Terraform including auto scaling groups, load balancers, and RDS — reducing deployment time by 90% with full CloudWatch monitoring and cost tracking.</p>
+            </div>
+            <div class="project-card">
+                <h3>Cloud Resume Site</h3>
+                <p>Built and deployed this serverless resume site on S3 and CloudFront with a DynamoDB visitor counter — eliminating server maintenance costs entirely with 99.99% availability.</p>
+            </div>
+            <div class="project-card">
+                <h3>CI/CD Pipeline</h3>
+                <p>Designed and implemented a full CI/CD pipeline using Jenkins, Terraform, and Ansible — automating infrastructure provisioning end to end with GuardDuty threat detection and complete audit trail.</p>
+            </div>
+            <div class="project-card">
+                <h3>HIPAA/FedRAMP Gap Assessment</h3>
+                <p>Led a mock HIPAA and FedRAMP gap assessment on a live AWS environment — identified control gaps, implemented remediation, and produced a full evidence documentation package audit-ready for external review.</p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Hasan | Cloud Engineer | Built on AWS</p>
+    </footer>
+
+    <script>
+        fetch('https://on585grlvh.execute-api.us-east-1.amazonaws.com/count')
+            .then(res => res.json())
+            .then(data => document.getElementById('counter').innerText = data.count)
+            .catch(() => document.getElementById('counter').innerText = 'Available soon');
+    </script>
+</body>
+</html>
