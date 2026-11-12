@@ -30,8 +30,8 @@ resource "aws_cloudwatch_metric_alarm" "cpu_low" {
   namespace           = "AWS/EC2"
   period              = 120
   statistic           = "Average"
-  threshold           = 20
-  alarm_description   = "Scale down when CPU drops below 20 percent"
+  threshold           = 40
+  alarm_description   = "Scale down when CPU drops below 40 percent"
   alarm_actions       = [aws_autoscaling_policy.scale_down.arn]
 
   dimensions = {

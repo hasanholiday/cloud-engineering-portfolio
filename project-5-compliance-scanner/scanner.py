@@ -2,12 +2,58 @@ import boto3
 import json
 from datetime import datetime, timezone, timedelta
 
-# Initialize AWS clients
-s3_client = boto3.client('s3', region_name='us-east-1')
-ec2_client = boto3.client('ec2', region_name='us-east-1')
-iam_client = boto3.client('iam')
-rds_client = boto3.client('rds', region_name='us-east-1')
-cloudtrail_client = boto3.client('cloudtrail', region_name='us-east-1')
+import os
+
+HOME_REGION = 'us-east-1'
+
+
+def build_session():
+    """Use the default credentials, or assume a read-only audit role if ASSUME_ROLE_ARN is set.
+
+    Env vars: ASSUME_ROLE_ARN (cross-account role), EXTERNAL_ID (optional, for client roles).
+    """
+    role_arn = os.environ.get('ASSUME_ROLE_ARN')
+    if not role_arn:
+        return boto3.Session()
+    params = {'RoleArn': role_arn, 'RoleSessionName': 'compliance-scan', 'DurationSeconds': 3600}
+    if os.environ.get('EXTERNAL_ID'):
+        params['ExternalId'] = os.environ['EXTERNAL_ID']
+    creds = boto3.client('sts').assume_role(**params)['Credentials']
+    print(f"Assumed role: {role_arn}")
+    return boto3.Session(
+        aws_access_key_id=creds['AccessKeyId'],
+        aws_secret_access_key=creds['SecretAccessKey'],
+        aws_session_token=creds['SessionToken'],
+    )
+
+
+session = build_session()
+
+# Global services (not region-specific)
+s3_client = session.client('s3', region_name=HOME_REGION)
+iam_client = session.client('iam')
+cloudtrail_client = session.client('cloudtrail', region_name=HOME_REGION)  # returns trails from all regions
+
+# Regional clients are set per region in main loop
+ec2_client = rds_client = cw_client = None
+current_region = HOME_REGION
+
+
+def get_regions():
+    """REGIONS env var (comma list) or every region enabled for the account."""
+    if os.environ.get('REGIONS'):
+        return [r.strip() for r in os.environ['REGIONS'].split(',') if r.strip()]
+    ec2 = session.client('ec2', region_name=HOME_REGION)
+    return sorted(r['RegionName'] for r in ec2.describe_regions()['Regions'])
+
+
+def set_region(region):
+    global ec2_client, rds_client, cw_client, current_region
+    current_region = region
+    ec2_client = session.client('ec2', region_name=region)
+    rds_client = session.client('rds', region_name=region)
+    cw_client = session.client('cloudwatch', region_name=region)
+
 
 findings = []
 passed = 0
@@ -90,28 +136,28 @@ def check_security_groups():
             sg_name = sg.get('GroupName', 'unnamed')
 
             for rule in sg.get('IpPermissions', []):
+                all_traffic = rule.get('IpProtocol') == '-1'
                 from_port = rule.get('FromPort', 0)
-                to_port = rule.get('ToPort', 0)
+                to_port = rule.get('ToPort', 65535 if all_traffic else 0)
 
                 for ip_range in rule.get('IpRanges', []):
-                    if ip_range.get('CidrIp') == '0.0.0.0/0':
-                        if from_port in dangerous_ports:
-                            add_finding(
-                                f"{sg_id} ({sg_name})",
-                                f'Port {from_port} Open to World',
-                                'FAIL',
-                                'PCI-DSS 1.2 | HIPAA 164.312(a)(1)',
-                                'CRITICAL',
-                                f'Restrict port {from_port} to specific IP addresses only'
-                            )
-                        else:
-                            add_finding(
-                                f"{sg_id} ({sg_name})",
-                                f'Port {from_port} Open to World',
-                                'PASS',
-                                'PCI-DSS 1.2',
-                                'LOW'
-                            )
+                    if ip_range.get('CidrIp') != '0.0.0.0/0':
+                        continue
+                    label = f"{current_region}:{sg_id} ({sg_name})"
+                    # Which dangerous ports fall inside this rule's range (handles 0-65535 and all-traffic)?
+                    exposed = [p for p in dangerous_ports if from_port <= p <= to_port]
+                    if exposed:
+                        add_finding(
+                            label,
+                            f"Ports {', '.join(str(p) for p in exposed)} Open to World",
+                            'FAIL',
+                            'PCI-DSS 1.2 | HIPAA 164.312(a)(1)',
+                            'CRITICAL',
+                            f"Restrict ports {', '.join(str(p) for p in exposed)} to specific IP addresses only"
+                        )
+                    else:
+                        add_finding(label, f'Port {from_port}-{to_port} Open to World', 'PASS',
+                                    'PCI-DSS 1.2', 'LOW')
 
     except Exception as e:
         print(f"  Security group scan error: {e}")
@@ -187,7 +233,7 @@ def check_rds():
             return
 
         for db in instances:
-            db_id = db['DBInstanceIdentifier']
+            db_id = f"{current_region}:{db['DBInstanceIdentifier']}"
 
             # Check encryption
             if db.get('StorageEncrypted', False):
@@ -257,35 +303,48 @@ def check_cloudtrail():
 # ============================================
 # EC2 COST WASTE CHECKS
 # ============================================
+def average_cpu(instance_id, days=7):
+    """Average CPU % over the last N days, or None if CloudWatch has no data."""
+    now = datetime.now(timezone.utc)
+    points = cw_client.get_metric_statistics(
+        Namespace='AWS/EC2', MetricName='CPUUtilization',
+        Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}],
+        StartTime=now - timedelta(days=days), EndTime=now,
+        Period=3600, Statistics=['Average'],
+    )['Datapoints']
+    if not points:
+        return None
+    return sum(p['Average'] for p in points) / len(points)
+
+
 def check_cost_waste():
-    print("Scanning for cost waste...")
+    print(f"Scanning for cost waste in {current_region}...")
     try:
-        instances = ec2_client.describe_instances()['Reservations']
+        paginator = ec2_client.get_paginator('describe_instances')
+        for page in paginator.paginate():
+            for reservation in page['Reservations']:
+                for instance in reservation['Instances']:
+                    state = instance['State']['Name']
+                    instance_id = instance['InstanceId']
+                    label = f"{current_region}:{instance_id} ({instance['InstanceType']})"
 
-        stopped_count = 0
-        for reservation in instances:
-            for instance in reservation['Instances']:
-                state = instance['State']['Name']
-                instance_id = instance['InstanceId']
-                instance_type = instance['InstanceType']
-
-                if state == 'stopped':
-                    stopped_count += 1
-                    add_finding(
-                        f"{instance_id} ({instance_type})",
-                        'Stopped EC2 Instance — EBS Still Billing',
-                        'FAIL',
-                        'SOC2 CC9.1 Cost Management',
-                        'MEDIUM',
-                        f'Terminate {instance_id} if no longer needed to stop EBS charges'
-                    )
-
-        if stopped_count == 0:
-            add_finding('EC2 Fleet', 'No Stopped Instances Wasting Money', 'PASS',
-                       'SOC2 CC9.1', 'LOW')
-
+                    if state == 'stopped':
+                        add_finding(label, 'Stopped EC2 Instance — EBS Still Billing', 'FAIL',
+                                    'SOC2 CC9.1 Cost Management', 'MEDIUM',
+                                    f'Terminate {instance_id} if no longer needed to stop EBS charges')
+                    elif state == 'running':
+                        cpu = average_cpu(instance_id)
+                        if cpu is None:
+                            continue  # new instance or no metrics yet; not enough evidence
+                        if cpu < 5:
+                            add_finding(label, f'Idle EC2 Instance (avg CPU {cpu:.1f}% over 7 days)', 'FAIL',
+                                        'SOC2 CC9.1 Cost Management', 'MEDIUM',
+                                        f'Review {instance_id}: stop, downsize, or terminate if unused')
+                        else:
+                            add_finding(label, f'EC2 Instance In Use (avg CPU {cpu:.1f}%)', 'PASS',
+                                        'SOC2 CC9.1', 'LOW')
     except Exception as e:
-        print(f"  Cost waste scan error: {e}")
+        print(f"  Cost waste scan error in {current_region}: {e}")
 
 # ============================================
 # GENERATE REPORT
@@ -382,10 +441,14 @@ print("Starting AWS Compliance and Security Scan...")
 print("=" * 60)
 
 check_s3()
-check_security_groups()
 check_iam()
-check_rds()
 check_cloudtrail()
-check_cost_waste()
+
+for region in get_regions():
+    print(f"\n--- Region: {region} ---")
+    set_region(region)
+    check_security_groups()
+    check_rds()
+    check_cost_waste()
 
 generate_report()

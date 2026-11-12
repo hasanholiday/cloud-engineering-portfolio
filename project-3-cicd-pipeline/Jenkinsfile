@@ -1,51 +1,78 @@
 pipeline {
     agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()   // two applies at once would corrupt Terraform state
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                echo 'Pipeline started successfully'
+                // Pull the exact commit that triggered this build, so every run is tied to a commit
+                checkout scm
+                sh 'git log -1 --pretty="Commit: %h | %an | %s"'
             }
         }
         stage('Terraform Init') {
             steps {
-                dir('/home/ec2-user/terraform-project') {
-                    sh 'terraform init'
+                dir('terraform-project') {
+                    sh 'terraform init -input=false'
+                }
+            }
+        }
+        stage('Terraform Validate') {
+            steps {
+                dir('terraform-project') {
+                    sh 'terraform validate'
                 }
             }
         }
         stage('Terraform Plan') {
             steps {
-                dir('/home/ec2-user/terraform-project') {
-                    sh 'terraform plan'
+                dir('terraform-project') {
+                    // Save the plan so Apply runs exactly what was reviewed
+                    sh 'terraform plan -input=false -out=tfplan'
+                }
+            }
+        }
+        stage('Approval') {
+            steps {
+                // Human gate before any real change (change-management control)
+                timeout(time: 30, unit: 'MINUTES') {
+                    input message: 'Review the Terraform plan above. Apply these changes?', ok: 'Apply'
                 }
             }
         }
         stage('Terraform Apply') {
             steps {
-                dir('/home/ec2-user/terraform-project') {
-                    sh 'terraform apply -auto-approve'
+                dir('terraform-project') {
+                    sh 'terraform apply -input=false tfplan'
                 }
             }
         }
         stage('Ansible Configure') {
             steps {
-                dir('/home/ec2-user/ansible-project') {
+                dir('ansible-project') {
                     sh 'ansible-playbook -i inventory.ini webserver.yml'
                 }
             }
         }
         stage('Verify') {
             steps {
-                sh 'curl http://localhost || echo Verification failed'
+                // Fails the build if the site does not return HTTP 200 (retries for up to ~60s)
+                sh 'curl --fail --silent --show-error --retry 6 --retry-delay 10 --retry-connrefused http://localhost > /dev/null'
+                echo 'Verification passed: site returned HTTP 200'
             }
         }
     }
+
     post {
         success {
             echo 'PIPELINE COMPLETE - Infrastructure built and configured'
         }
         failure {
-            echo 'PIPELINE FAILED - Check logs above'
+            echo 'PIPELINE FAILED - Check logs above. No automatic rollback yet: fix forward or run terraform destroy/apply manually.'
         }
     }
 }

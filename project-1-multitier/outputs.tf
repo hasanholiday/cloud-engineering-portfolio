@@ -12,3 +12,8 @@ output "vpc_id" {
   value       = aws_vpc.main.id
   description = "VPC ID"
 }
+
+output "database_secret_arn" {
+  value       = aws_db_instance.main.master_user_secret[0].secret_arn
+  description = "Secrets Manager ARN holding the generated database password"
+}

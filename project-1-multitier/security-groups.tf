@@ -27,7 +27,7 @@ resource "aws_security_group" "alb" {
 # Web Server Security Group — only accepts traffic from load balancer
 resource "aws_security_group" "web" {
   name        = "project1-web-sg"
-  description = "Allow HTTP from ALB only"
+  description = "Allow HTTP from ALB only (no SSH)"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -35,13 +35,6 @@ resource "aws_security_group" "web" {
     to_port         = 80
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
-  }
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {

@@ -45,14 +45,19 @@ resource "aws_lb_listener" "web" {
   }
 }
 
+# Latest Amazon Linux 2023 AMI (no hardcoded AMI ID that goes stale)
+data "aws_ssm_parameter" "al2023" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+}
+
 # Launch Template — blueprint for web servers
 resource "aws_launch_template" "web" {
   name_prefix   = "project1-web-"
-  image_id      = "ami-0c02fb55956c7d316"
+  image_id      = data.aws_ssm_parameter.al2023.value
   instance_type = "t3.micro"
 
   network_interfaces {
-    associate_public_ip_address = true
+    associate_public_ip_address = false
     security_groups             = [aws_security_group.web.id]
   }
 
@@ -82,12 +87,15 @@ resource "aws_launch_template" "web" {
 # Auto Scaling Group
 resource "aws_autoscaling_group" "web" {
   name                = "project1-asg"
-  vpc_zone_identifier = [aws_subnet.public_1.id, aws_subnet.public_2.id]
+  vpc_zone_identifier = [aws_subnet.private_1.id, aws_subnet.private_2.id]
   target_group_arns   = [aws_lb_target_group.web.arn]
   health_check_type   = "ELB"
   min_size            = 2
   max_size            = 4
   desired_capacity    = 2
+
+  # Wait for the NAT route so instances can install packages on first boot
+  depends_on = [aws_route_table_association.private_1, aws_route_table_association.private_2]
 
   launch_template {
     id      = aws_launch_template.web.id

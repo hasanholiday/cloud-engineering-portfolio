@@ -36,7 +36,7 @@ Projects 6 and 7 form a single continuous engagement for MedCore Health — a co
 
 ## Highlights
 
-- **Architected highly available AWS infrastructure** using Auto Scaling and Load Balancing, reducing operational cost by ~40% through demand-based scaling (scale out at 70% CPU, scale in at 40%)
+- **Architected highly available AWS infrastructure** using Auto Scaling and Load Balancing, with demand-based scaling (scale out at 70% CPU, scale in at 40%)
 - **Automated infrastructure deployment** with Terraform, cutting build time from a multi-hour manual process to an 8-minute automated deployment
 - **Identified and remediated 11 security and compliance gaps**, including 6 critical findings, across a live AWS environment
 - **Achieved a 95% projected cost reduction** through a full on-prem to AWS migration using the 6R framework
