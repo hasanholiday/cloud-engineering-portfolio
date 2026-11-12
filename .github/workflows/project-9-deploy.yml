@@ -1,0 +1,115 @@
+name: project-9 push-to-prod
+
+on:
+  pull_request:
+    paths: ["project-9-push-to-prod/**"]
+  push:
+    branches: [main]
+    paths: ["project-9-push-to-prod/**"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TF_DIR: project-9-push-to-prod/terraform
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        working-directory: project-9-push-to-prod/app
+        run: python -m unittest -v
+
+  plan:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.9.8 }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Terraform plan (placeholder tag, infra review only)
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}"
+          terraform fmt -check -recursive
+          terraform validate
+          terraform plan -input=false -no-color \
+            -var "ecr_repo_url=${{ vars.ECR_REPO_URL }}" -var "image_tag=${{ github.sha }}" | tee plan.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: plan, path: "${{ env.TF_DIR }}/plan.txt" }
+
+  deploy:
+    # Only on main. The "production" environment has required reviewers = the manual approval gate.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.9.8 }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Build and push image
+        id: build
+        run: |
+          REGISTRY=${{ vars.ECR_REPO_URL }}
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${REGISTRY%%/*}"
+          docker build --build-arg APP_VERSION=${{ github.sha }} -t "$REGISTRY:${{ github.sha }}" project-9-push-to-prod/app
+          docker push "$REGISTRY:${{ github.sha }}"
+
+      - name: Remember the last good tag
+        id: prev
+        run: |
+          PREV=$(aws ssm get-parameter --name /ptp/last-good-tag --query Parameter.Value --output text 2>/dev/null || echo "")
+          echo "tag=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform apply
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}"
+          terraform apply -auto-approve -input=false \
+            -var "ecr_repo_url=${{ vars.ECR_REPO_URL }}" -var "image_tag=${{ github.sha }}"
+          echo "ALB=$(terraform output -raw alb_url)" >> "$GITHUB_ENV"
+
+      - name: Health check (new version must answer on /health)
+        id: health
+        run: |
+          for i in $(seq 1 60); do
+            BODY=$(curl -fsS --max-time 5 "$ALB/health" || true)
+            echo "try $i: $BODY"
+            if echo "$BODY" | grep -q "${{ github.sha }}"; then echo "healthy"; exit 0; fi
+            sleep 10
+          done
+          echo "new version never became healthy"; exit 1
+
+      - name: Mark as last good
+        if: success()
+        run: aws ssm put-parameter --name /ptp/last-good-tag --type String --overwrite --value "${{ github.sha }}"
+
+      - name: Roll back to the last good tag
+        if: failure() && steps.health.outcome == 'failure' && steps.prev.outputs.tag != ''
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          echo "Rolling back to ${{ steps.prev.outputs.tag }}"
+          terraform apply -auto-approve -input=false \
+            -var "ecr_repo_url=${{ vars.ECR_REPO_URL }}" -var "image_tag=${{ steps.prev.outputs.tag }}"
