@@ -1,0 +1,2 @@
+# Time off policy (Northwind Labs, sample)
+Full-time employees get 20 days of paid time off each year. Up to 5 unused days can carry over into the next year. Requests longer than 3 days must be made at least 2 weeks ahead through the HR portal. Sick leave is separate: 10 paid sick days per year, and a doctor's note is needed after 3 days in a row. Public holidays are not counted against your 20 days.

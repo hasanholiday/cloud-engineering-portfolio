@@ -1,0 +1,31 @@
+name: project-10 tests and evals
+
+on:
+  pull_request:
+    paths: ["project-10-ai-assistant/**"]
+  push:
+    branches: [main]
+    paths: ["project-10-ai-assistant/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: project-10-ai-assistant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Unit tests (guard, RAG, agent)
+        run: python -I -m unittest discover -s tests -v
+      - name: Offline evals (do not ship if the score drops below 85%)
+        run: python -I evals/run_evals.py --offline --threshold 0.85
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.9.8 }
+      - name: Terraform format and validate
+        working-directory: project-10-ai-assistant/terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate

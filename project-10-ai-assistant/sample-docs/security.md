@@ -1,0 +1,2 @@
+# Security rules (Northwind Labs, sample)
+Multi-factor authentication is required on every work account. Use the company password manager and never reuse passwords. If a laptop or phone is lost or stolen, report it to the security team within 1 hour. Customer data must never be saved on personal devices or sent to personal email. Install updates within 7 days of release. Phishing emails should be forwarded to the security mailbox, not answered.

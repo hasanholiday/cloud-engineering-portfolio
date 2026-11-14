@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars and fill in. Pick a model you have enabled in the Bedrock console.
+gen_model_id   = "REPLACE_WITH_YOUR_ENABLED_MODEL_OR_INFERENCE_PROFILE_ID"
+gen_model_arns = ["REPLACE_WITH_THE_MODEL_AND_PROFILE_ARNS_FROM_THE_CONSOLE"]
+alert_email    = "you@example.com"
